@@ -6,11 +6,16 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System.Net.Http.Headers;
+using System.Net.Http;
+using System;
 
 namespace azure_function_alexasmarthomeskill_homeassistant
 {
-    public static class Function
+    public static class AlexaSmartHomeSkillHomeAssistantFunction
     {
+        private static readonly HttpClient _httpClient = new HttpClient();
+
         [FunctionName("AlexaSmartHomeSkillHomeAssistantFunction")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
@@ -18,17 +23,78 @@ namespace azure_function_alexasmarthomeskill_homeassistant
         {
             log.LogInformation("C# HTTP trigger function processed a request.");
 
-            string name = req.Query["name"];
-
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            dynamic eventData = JsonConvert.DeserializeObject(requestBody);
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+            string base_url = Environment.GetEnvironmentVariable("BASE_URL");
+            if (string.IsNullOrEmpty(base_url))
+            {
+                return new BadRequestObjectResult("Please set BASE_URL environment variable");
+            }
+            base_url = base_url.TrimEnd('/');
 
-            return new OkObjectResult(responseMessage);
+            dynamic directive = eventData.directive;
+            if (directive == null)
+            {
+                return new BadRequestObjectResult("Malformatted request - missing directive");
+            }
+
+            if (directive.header.payloadVersion != "3")
+            {
+                return new BadRequestObjectResult("Only support payloadVersion == 3");
+            }
+
+            dynamic scope = directive.endpoint.scope ?? directive.payload.grantee ?? directive.payload.scope;
+            if (scope == null)
+            {
+                return new BadRequestObjectResult("Malformatted request - missing endpoint.scope");
+            }
+
+            if (scope.type != "BearerToken")
+            {
+                return new BadRequestObjectResult("Only support BearerToken");
+            }
+
+            string token = scope.token ?? Environment.GetEnvironmentVariable("LONG_LIVED_ACCESS_TOKEN");
+            bool verify_ssl = !bool.Parse(Environment.GetEnvironmentVariable("NOT_VERIFY_SSL") ?? "false");
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var content = new StringContent(JsonConvert.SerializeObject(eventData), System.Text.Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync($"{base_url}/api/alexa/smart_home", content);
+
+            if ((int)response.StatusCode >= 400)
+            {
+                var errorType = response.StatusCode == System.Net.HttpStatusCode.Unauthorized || response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "INVALID_AUTHORIZATION_CREDENTIAL"
+                    : "INTERNAL_ERROR";
+                var errorMessage = await response.Content.ReadAsStringAsync();
+
+                return new OkObjectResult(new
+                {
+                    eventObj = new
+                    {
+                        header = new
+                        {
+                            @namespace = "Alexa",
+                            name = "ErrorResponse",
+                            messageId = Guid.NewGuid().ToString(),
+                            payloadVersion = "3"
+                        },
+                        payload = new
+                        {
+                            type = errorType,
+                            message = errorMessage
+                        }
+                    }
+
+                });
+            }
+
+            string responseContent = await response.Content.ReadAsStringAsync();
+            dynamic responseObj = JsonConvert.DeserializeObject(responseContent);
+
+            return new OkObjectResult(responseObj);
         }
     }
 }
