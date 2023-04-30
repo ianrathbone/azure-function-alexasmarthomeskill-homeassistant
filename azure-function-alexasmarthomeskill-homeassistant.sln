@@ -5,6 +5,8 @@ VisualStudioVersion = 17.6.33617.297
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "azure-function-alexasmarthomeskill-homeassistant", "src\azure-function-alexasmarthomeskill-homeassistant.csproj", "{02EEAC64-8281-446A-A3DF-FA631732E343}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{84C1C478-E186-4BB9-ADF8-F93D55A32E60}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,6 +20,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{02EEAC64-8281-446A-A3DF-FA631732E343} = {84C1C478-E186-4BB9-ADF8-F93D55A32E60}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {12949A03-C78D-400C-8BD7-D71E4AD43DC6}
