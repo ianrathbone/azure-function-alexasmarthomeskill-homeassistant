@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "azure_function_alexasmarthomeskill_homeassistant": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7283",
+      "launchBrowser": false
+    }
+  }
+}
